@@ -43,8 +43,8 @@ public class MainActivity extends AppCompatActivity {
         ed1 = findViewById(R.id.ed1);
         ed2 = findViewById(R.id.ed2);
         long time = System.currentTimeMillis() / 1000;
-        ed1.setText("webrtc://192.168.1.139/live/livestream2");
-        ed2.setText("webrtc://192.168.1.157/live/livestream3");
+        ed1.setText("webrtc://192.168.0.11/live/livestream");
+        ed2.setText("webrtc://106.52.163.210//live/livestream2");
         rbPushAudio = findViewById(R.id.rbPushAudio);
         rbPushVideo = findViewById(R.id.rbPushVideo);
         rbPlayVideo = findViewById(R.id.rbPlayVideo);

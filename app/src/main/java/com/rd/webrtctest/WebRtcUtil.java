@@ -218,19 +218,21 @@ public class WebRtcUtil implements PeerConnection.Observer, SdpObserver {
 
     private int reConnCount;
     private final int MAX_CONN_COUNT = 10;
-    public static final String API = "http://%s:1985/rtc/play";
+    public static final String API = "http://%s:1985/rtc/v1/play/";
+    public static final String STREAM_URL = "webrtc://%s/live/livestream";
 
     public void openWebRtc(String sdp) {
         PlayBodyBean playBodyBean = new PlayBodyBean();
         //解析ip
         String serverIp = getIps(playUrl).get(0);
+        String streamUrl = String.format(STREAM_URL, serverIp);
         String api = String.format(API, serverIp);
         if (isPublish) {
             api = api.replace("play", "publish");
         }
         playBodyBean.setApi(api);
         playBodyBean.setClientip(getIpAddressString());
-        playBodyBean.setStreamurl(playUrl);
+        playBodyBean.setStreamurl(streamUrl);
         playBodyBean.setSdp(sdp);
         String body = GsonUtil.toJson(playBodyBean);
         Log.i(TAG, "openWebRtc: api = " + playBodyBean.getApi());
@@ -254,7 +256,7 @@ public class WebRtcUtil implements PeerConnection.Observer, SdpObserver {
                     }
                 }, throwable -> {
                     Log.e(TAG, "openWebRtc: throwable " + throwable.getMessage());
-                    //openWebRtc(sdp);
+                    openWebRtc(sdp);
                 });
     }
 
