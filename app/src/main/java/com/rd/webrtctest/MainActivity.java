@@ -43,15 +43,15 @@ public class MainActivity extends AppCompatActivity {
         ed1 = findViewById(R.id.ed1);
         ed2 = findViewById(R.id.ed2);
         long time = System.currentTimeMillis() / 1000;
-        ed1.setText("https://zlv.runde.pro/index/api/webrtc?app=live&stream=" + time + "&type=push");
-        ed2.setText("https://zlv.runde.pro/index/api/webrtc?app=live&stream=" + time + "&type=play");
+        ed1.setText("webrtc://192.168.1.139/live/livestream2");
+        ed2.setText("webrtc://192.168.1.157/live/livestream3");
         rbPushAudio = findViewById(R.id.rbPushAudio);
         rbPushVideo = findViewById(R.id.rbPushVideo);
         rbPlayVideo = findViewById(R.id.rbPlayVideo);
         rbPlayAudio = findViewById(R.id.rbPlayAudio);
         mRootEglBase = EglBase.create();
 
-        //初始化SurfaceViewRenderer
+        //初始化SurfaceViewRendere
         surfaceViewRenderer1.init(mRootEglBase.getEglBaseContext(), new RendererCommon.RendererEvents() {
             @Override
             public void onFirstFrameRendered() {

@@ -3,13 +3,13 @@ plugins {
 }
 
 android {
-    compileSdkVersion 30
-    buildToolsVersion "30.0.2"
+    compileSdkVersion 28
+    buildToolsVersion "28.0.3"
 
     defaultConfig {
         applicationId "com.rd.webrtctest"
-        minSdkVersion 23
-        targetSdkVersion 30
+        minSdkVersion 21
+        targetSdkVersion 28
         versionCode 1
         versionName "1.0"
         ndk {
@@ -21,8 +21,8 @@ android {
             annotationProcessorOptions {
                 arguments = [
                         //Pass in RxJava version, can pass in RxJava2, RxJava3
-                        rxhttp_rxjava: 'rxjava3',
-                        rxhttp_package: 'rxhttp',   //Specifies the RxHttp class package
+                        rxhttp_rxjava      : 'rxjava3',
+                        rxhttp_package     : 'rxhttp',   //Specifies the RxHttp class package
                         AROUTER_MODULE_NAME: project.getName()
                 ]
             }
@@ -66,7 +66,8 @@ dependencies {
 
     implementation 'com.ljx.rxhttp:rxhttp:2.5.7'
     implementation 'com.squareup.okhttp3:okhttp:4.9.1'
-    annotationProcessor 'com.ljx.rxhttp:rxhttp-compiler:2.5.7' //生成RxHttp类，纯Java项目，请使用annotationProcessor代替kapt
+    annotationProcessor 'com.ljx.rxhttp:rxhttp-compiler:2.5.7'
+    //生成RxHttp类，纯Java项目，请使用annotationProcessor代替kapt
     //rxjava3
     implementation 'io.reactivex.rxjava3:rxjava:3.0.6'
     implementation 'io.reactivex.rxjava3:rxandroid:3.0.0'
@@ -77,4 +78,5 @@ dependencies {
     annotationProcessor 'org.projectlombok:lombok:1.18.16'
     //gson
     implementation 'com.google.code.gson:gson:2.8.6'
+    implementation 'com.github.shenbengit:WebRTCExtension:1.0.1'
 }

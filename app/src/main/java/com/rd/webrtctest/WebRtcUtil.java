@@ -1,8 +1,11 @@
 package com.rd.webrtctest;
 
 import android.content.Context;
+import android.media.MediaCodecInfo;
 import android.text.TextUtils;
 import android.util.Log;
+
+import androidx.annotation.NonNull;
 
 import com.google.gson.Gson;
 
@@ -11,6 +14,7 @@ import org.webrtc.AudioTrack;
 import org.webrtc.DataChannel;
 import org.webrtc.DefaultVideoDecoderFactory;
 import org.webrtc.DefaultVideoEncoderFactory;
+import org.webrtc.DefaultVideoEncoderFactoryExtKt;
 import org.webrtc.EglBase;
 import org.webrtc.IceCandidate;
 import org.webrtc.Logging;
@@ -29,14 +33,25 @@ import org.webrtc.SurfaceViewRenderer;
 import org.webrtc.VideoCapturer;
 import org.webrtc.VideoDecoderFactory;
 import org.webrtc.VideoEncoderFactory;
+import org.webrtc.VideoEncoderSupportedCallback;
 import org.webrtc.VideoSource;
 import org.webrtc.VideoTrack;
 import org.webrtc.audio.JavaAudioDeviceModule;
 import org.webrtc.voiceengine.WebRtcAudioUtils;
 
+import java.net.Inet4Address;
+import java.net.InetAddress;
+import java.net.NetworkInterface;
+import java.net.SocketException;
 import java.util.ArrayList;
+import java.util.Enumeration;
+import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
+import okhttp3.MediaType;
 import rxhttp.RxHttp;
+import rxhttp.wrapper.utils.GsonUtil;
 
 
 /**
@@ -44,9 +59,11 @@ import rxhttp.RxHttp;
  */
 public class WebRtcUtil implements PeerConnection.Observer, SdpObserver {
 
+    private static final String TAG = "WebRtcUtil";
+
     private Context context;
 
-    public WebRtcUtil(Context context){
+    public WebRtcUtil(Context context) {
         this.context = context.getApplicationContext();
     }
 
@@ -112,8 +129,7 @@ public class WebRtcUtil implements PeerConnection.Observer, SdpObserver {
             //设置仅接收音视频
             peerConnection.addTransceiver(MediaStreamTrack.MediaType.MEDIA_TYPE_AUDIO, new RtpTransceiver.RtpTransceiverInit(RtpTransceiver.RtpTransceiverDirection.RECV_ONLY));
             peerConnection.addTransceiver(MediaStreamTrack.MediaType.MEDIA_TYPE_VIDEO, new RtpTransceiver.RtpTransceiverInit(RtpTransceiver.RtpTransceiverDirection.RECV_ONLY));
-        }
-        else {
+        } else {
             //设置仅推送音视频
             peerConnection.addTransceiver(MediaStreamTrack.MediaType.MEDIA_TYPE_AUDIO, new RtpTransceiver.RtpTransceiverInit(RtpTransceiver.RtpTransceiverDirection.SEND_ONLY));
             peerConnection.addTransceiver(MediaStreamTrack.MediaType.MEDIA_TYPE_VIDEO, new RtpTransceiver.RtpTransceiverInit(RtpTransceiver.RtpTransceiverDirection.SEND_ONLY));
@@ -183,6 +199,7 @@ public class WebRtcUtil implements PeerConnection.Observer, SdpObserver {
 
     /**
      * 配置音频参数
+     *
      * @return
      */
     private MediaConstraints createAudioConstraints() {
@@ -201,20 +218,30 @@ public class WebRtcUtil implements PeerConnection.Observer, SdpObserver {
 
     private int reConnCount;
     private final int MAX_CONN_COUNT = 10;
+    public static final String API = "http://%s:1985/rtc/play";
 
     public void openWebRtc(String sdp) {
-        //isPublish true时xxxx的url后缀应为publish false时xxxx的url后缀为play
-        //例: "https://www.baidu.com/rtc/v1/publish" : "https://www.baidu.com/rtc/v1/play"
-        //请求的url和api的参数为同一个内容
-        RxHttp.postBody(playUrl, sdp)
-//                .add("app", "live")
-//                .add("stream", "test")
-//                .add("type", isPublish ? "push" : "play")
-                .setBody(sdp, null)
+        PlayBodyBean playBodyBean = new PlayBodyBean();
+        //解析ip
+        String serverIp = getIps(playUrl).get(0);
+        String api = String.format(API, serverIp);
+        if (isPublish) {
+            api = api.replace("play", "publish");
+        }
+        playBodyBean.setApi(api);
+        playBodyBean.setClientip(getIpAddressString());
+        playBodyBean.setStreamurl(playUrl);
+        playBodyBean.setSdp(sdp);
+        String body = GsonUtil.toJson(playBodyBean);
+        Log.i(TAG, "openWebRtc: api = " + playBodyBean.getApi());
+        Log.i(TAG, "openWebRtc: clientIp = " + playBodyBean.getClientip());
+        Log.i(TAG, "openWebRtc: streamurl = " + playBodyBean.getStreamurl());
+        RxHttp.postBody(api)
+                .setBody(body, MediaType.parse("json:application/json;charset=utf-8"))
                 .asString()
                 .subscribe(s -> {
                     s = s.replaceAll("\n", "");
-                    Log.e("WebRtc流", "是否推流: " + isPublish + "  地址:" + playUrl + s);
+                    Log.i(TAG, "openWebRtc: result = " + s);
                     if (!TextUtils.isEmpty(s)) {
                         SdpBean sdpBean = new Gson().fromJson(s, SdpBean.class);
                         if (sdpBean.getCode() == 400) {
@@ -226,8 +253,46 @@ public class WebRtcUtil implements PeerConnection.Observer, SdpObserver {
                         }
                     }
                 }, throwable -> {
-                    openWebRtc(sdp);
+                    Log.e(TAG, "openWebRtc: throwable " + throwable.getMessage());
+                    //openWebRtc(sdp);
                 });
+    }
+
+    public static String getIpAddressString() {
+        try {
+            for (Enumeration<NetworkInterface> enNetI = NetworkInterface
+                    .getNetworkInterfaces(); enNetI.hasMoreElements(); ) {
+                NetworkInterface netI = enNetI.nextElement();
+                for (Enumeration<InetAddress> enumIpAddr = netI
+                        .getInetAddresses(); enumIpAddr.hasMoreElements(); ) {
+                    InetAddress inetAddress = enumIpAddr.nextElement();
+                    if (inetAddress instanceof Inet4Address && !inetAddress.isLoopbackAddress()) {
+                        return inetAddress.getHostAddress();
+                    }
+                }
+            }
+        } catch (SocketException e) {
+            e.printStackTrace();
+        }
+        return "0.0.0.0";
+    }
+
+    /**
+     * 正则提前字符串中的IP地址
+     *
+     * @param ipString
+     * @return
+     */
+    public static List<String> getIps(String ipString) {
+        String regEx = "((2[0-4]\\d|25[0-5]|[01]?\\d\\d?)\\.){3}(2[0-4]\\d|25[0-5]|[01]?\\d\\d?)";
+        List<String> ips = new ArrayList<String>();
+        Pattern p = Pattern.compile(regEx);
+        Matcher m = p.matcher(ipString);
+        while (m.find()) {
+            String result = m.group();
+            ips.add(result);
+        }
+        return ips;
     }
 
     public void setRemoteSdp(String sdp) {
@@ -239,6 +304,7 @@ public class WebRtcUtil implements PeerConnection.Observer, SdpObserver {
 
     public interface WebRtcCallBack {
         void onSuccess();
+
         void onFail();
     }
 
@@ -260,6 +326,29 @@ public class WebRtcUtil implements PeerConnection.Observer, SdpObserver {
                 eglBase.getEglBaseContext(),
                 false,
                 true);
+
+        //use java
+        DefaultVideoEncoderFactory encoderFactorySupportH264 = DefaultVideoEncoderFactoryExtKt.createCustomVideoEncoderFactory(eglBase.getEglBaseContext(),
+                true,
+                true,
+                new VideoEncoderSupportedCallback() {
+                    @Override
+                    public boolean isSupportedH264(@NonNull MediaCodecInfo info) {
+                        return true;
+                    }
+
+                    @Override
+                    public boolean isSupportedVp8(@NonNull MediaCodecInfo info) {
+                        return false;
+                    }
+
+                    @Override
+                    public boolean isSupportedVp9(@NonNull MediaCodecInfo info) {
+                        return false;
+                    }
+                });
+
+
         VideoDecoderFactory decoderFactory = new DefaultVideoDecoderFactory(eglBase.getEglBaseContext());
 
         // 构造Factory
@@ -270,7 +359,7 @@ public class WebRtcUtil implements PeerConnection.Observer, SdpObserver {
         return PeerConnectionFactory.builder()
                 .setOptions(new PeerConnectionFactory.Options())
                 .setAudioDeviceModule(JavaAudioDeviceModule.builder(context).createAudioDeviceModule())
-                .setVideoEncoderFactory(encoderFactory)
+                .setVideoEncoderFactory(encoderFactorySupportH264)
                 .setVideoDecoderFactory(decoderFactory)
                 .createPeerConnectionFactory();
     }
