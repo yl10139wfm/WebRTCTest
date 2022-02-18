@@ -32,7 +32,6 @@ public class CameraUtil {
      */
     private static VideoCapturer createCameraCapture(CameraEnumerator enumerator) {
         final String[] deviceNames = enumerator.getDeviceNames();
-
         // First, try to find front facing camera
         for (String deviceName : deviceNames) {
             if (enumerator.isFrontFacing(deviceName)) {
@@ -42,7 +41,6 @@ public class CameraUtil {
                 }
             }
         }
-
         // Front facing camera not found, try something else
         for (String deviceName : deviceNames) {
             if (!enumerator.isFrontFacing(deviceName)) {

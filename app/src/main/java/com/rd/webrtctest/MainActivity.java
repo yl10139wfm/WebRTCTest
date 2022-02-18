@@ -17,6 +17,7 @@ import org.webrtc.EglBase;
 import org.webrtc.PeerConnectionFactory;
 import org.webrtc.RendererCommon;
 import org.webrtc.SurfaceViewRenderer;
+
 import java.util.List;
 
 
@@ -43,15 +44,15 @@ public class MainActivity extends AppCompatActivity {
         ed1 = findViewById(R.id.ed1);
         ed2 = findViewById(R.id.ed2);
         long time = System.currentTimeMillis() / 1000;
-        ed1.setText("webrtc://192.168.0.11/live/livestream");
-        ed2.setText("webrtc://106.52.163.210//live/livestream2");
+        ed1.setText("webrtc://192.168.1.139/live/livestream");
+        ed2.setText("webrtc://192.168.1.139/live/livestream");
         rbPushAudio = findViewById(R.id.rbPushAudio);
         rbPushVideo = findViewById(R.id.rbPushVideo);
         rbPlayVideo = findViewById(R.id.rbPlayVideo);
         rbPlayAudio = findViewById(R.id.rbPlayAudio);
         mRootEglBase = EglBase.create();
 
-        //初始化SurfaceViewRendere
+        //初始化SurfaceViewRenderer
         surfaceViewRenderer1.init(mRootEglBase.getEglBaseContext(), new RendererCommon.RendererEvents() {
             @Override
             public void onFirstFrameRendered() {
@@ -64,7 +65,6 @@ public class MainActivity extends AppCompatActivity {
             }
         });
         surfaceViewRenderer1.setScalingType(RendererCommon.ScalingType.SCALE_ASPECT_FILL);
-//        surfaceViewRenderer.setMirror(false);
         surfaceViewRenderer1.setEnableHardwareScaler(true);
         surfaceViewRenderer1.setZOrderMediaOverlay(true);
 
@@ -81,17 +81,13 @@ public class MainActivity extends AppCompatActivity {
         });
 
         surfaceViewRenderer2.setScalingType(RendererCommon.ScalingType.SCALE_ASPECT_FILL);
-//        surfaceViewRenderer1.setMirror(true);
         surfaceViewRenderer2.setEnableHardwareScaler(true);
         surfaceViewRenderer2.setZOrderMediaOverlay(true);
 
         XXPermissions.with(this)
                 .permission(Permission.CAMERA)
                 .permission(Permission.RECORD_AUDIO)
-                .request(new OnPermissionCallback() {
-                    @Override
-                    public void onGranted(List<String> permissions, boolean all) {
-                    }
+                .request((permissions, all) -> {
                 });
     }
 
@@ -108,6 +104,12 @@ public class MainActivity extends AppCompatActivity {
         doPush();
     }
 
+    public void stopPush(View view) {
+        if (webRtcUtil1 != null) {
+            webRtcUtil1.destroy();
+        }
+    }
+
     private WebRtcUtil webRtcUtil1;
 
     private void doPush() {
@@ -120,7 +122,7 @@ public class MainActivity extends AppCompatActivity {
             webRtcUtil1.destroy();
         }
         webRtcUtil1 = new WebRtcUtil(MainActivity.this);
-        webRtcUtil1.create(mRootEglBase, rbPushVideo.isChecked() ? surfaceViewRenderer1 : null, true, rbPushVideo.isChecked(), text, new WebRtcUtil.WebRtcCallBack(){
+        webRtcUtil1.create(mRootEglBase, rbPushVideo.isChecked() ? surfaceViewRenderer1 : null, true, rbPushVideo.isChecked(), text, new WebRtcUtil.WebRtcCallBack() {
             @Override
             public void onSuccess() {
 
@@ -149,7 +151,7 @@ public class MainActivity extends AppCompatActivity {
             webRtcUtil2.destroy();
         }
         webRtcUtil2 = new WebRtcUtil(MainActivity.this);
-        webRtcUtil2.create(mRootEglBase, rbPlayVideo.isChecked() ? surfaceViewRenderer2 : null, false, rbPlayVideo.isChecked(), text, new WebRtcUtil.WebRtcCallBack(){
+        webRtcUtil2.create(mRootEglBase, rbPlayVideo.isChecked() ? surfaceViewRenderer2 : null, false, rbPlayVideo.isChecked(), text, new WebRtcUtil.WebRtcCallBack() {
             @Override
             public void onSuccess() {
 

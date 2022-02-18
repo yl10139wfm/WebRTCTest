@@ -6,6 +6,7 @@ import android.text.TextUtils;
 import android.util.Log;
 
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 
 import com.google.gson.Gson;
 
@@ -24,7 +25,6 @@ import org.webrtc.MediaStreamTrack;
 import org.webrtc.PeerConnection;
 import org.webrtc.PeerConnectionFactory;
 import org.webrtc.RtpReceiver;
-import org.webrtc.RtpSender;
 import org.webrtc.RtpTransceiver;
 import org.webrtc.SdpObserver;
 import org.webrtc.SessionDescription;
@@ -34,6 +34,9 @@ import org.webrtc.VideoCapturer;
 import org.webrtc.VideoDecoderFactory;
 import org.webrtc.VideoEncoderFactory;
 import org.webrtc.VideoEncoderSupportedCallback;
+import org.webrtc.VideoFrame;
+import org.webrtc.VideoProcessor;
+import org.webrtc.VideoSink;
 import org.webrtc.VideoSource;
 import org.webrtc.VideoTrack;
 import org.webrtc.audio.JavaAudioDeviceModule;
@@ -43,6 +46,7 @@ import java.net.Inet4Address;
 import java.net.InetAddress;
 import java.net.NetworkInterface;
 import java.net.SocketException;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Enumeration;
 import java.util.List;
@@ -77,9 +81,9 @@ public class WebRtcUtil implements PeerConnection.Observer, SdpObserver {
 
     private AudioSource audioSource;
     private VideoSource videoSource;
-    private AudioTrack localAudioTrack;
-    private VideoTrack localVideoTrack;
-    private VideoCapturer captureAndroid;
+    private AudioTrack audioTrack;
+    private VideoTrack videoTrack;
+    private VideoCapturer videoCapturer;
     private SurfaceTextureHelper surfaceTextureHelper;
     public static final String VIDEO_TRACK_ID = "ARDAMSv0";
     public static final String AUDIO_TRACK_ID = "ARDAMSa0";
@@ -140,48 +144,99 @@ public class WebRtcUtil implements PeerConnection.Observer, SdpObserver {
 
             // 音频
             audioSource = peerConnectionFactory.createAudioSource(createAudioConstraints());
-            localAudioTrack = peerConnectionFactory.createAudioTrack(AUDIO_TRACK_ID, audioSource);
-            localAudioTrack.setEnabled(true);
+            audioTrack = peerConnectionFactory.createAudioTrack(AUDIO_TRACK_ID, audioSource);
+            audioTrack.setEnabled(true);
 
-            peerConnection.addTrack(localAudioTrack);
+            peerConnection.addTrack(audioTrack);
             //是否显示摄像头画面
             if (isShowCamera) {
-                captureAndroid = CameraUtil.createVideoCapture(context);
+                videoCapturer = CameraUtil.createVideoCapture(context);
                 surfaceTextureHelper = SurfaceTextureHelper.create("CaptureThread", eglBase.getEglBaseContext());
-
                 videoSource = peerConnectionFactory.createVideoSource(false);
-
-                captureAndroid.initialize(surfaceTextureHelper, context, videoSource.getCapturerObserver());
-                captureAndroid.startCapture(VIDEO_RESOLUTION_WIDTH, VIDEO_RESOLUTION_HEIGHT, FPS);
-
-                localVideoTrack = peerConnectionFactory.createVideoTrack(VIDEO_TRACK_ID, videoSource);
-                localVideoTrack.setEnabled(true);
+                videoSource.setVideoProcessor(videoProcessor);
+                videoCapturer.initialize(surfaceTextureHelper, context, videoSource.getCapturerObserver());
+                videoCapturer.startCapture(VIDEO_RESOLUTION_WIDTH, VIDEO_RESOLUTION_HEIGHT, FPS);
+                videoTrack = peerConnectionFactory.createVideoTrack(VIDEO_TRACK_ID, videoSource);
+                videoTrack.setEnabled(true);
                 if (surfaceViewRenderer != null) {
                     ProxyVideoSink videoSink = new ProxyVideoSink();
                     videoSink.setTarget(surfaceViewRenderer);
-                    localVideoTrack.addSink(videoSink);
+                    videoTrack.addSink(videoSink);
                 }
-                peerConnection.addTrack(localVideoTrack);
+                peerConnection.addTrack(videoTrack);
             }
         }
         peerConnection.createOffer(this, mediaConstraints);
     }
 
+    private H264Encoder h264Encoder;
+
+    private final VideoProcessor videoProcessor = new VideoProcessor() {
+        @Override
+        public void setSink(@Nullable VideoSink videoSink) {
+            Log.i(TAG, "setSink: ");
+        }
+
+        @Override
+        public void onCapturerStarted(boolean b) {
+            Log.i(TAG, "onCapturerStarted: ");
+            h264Encoder = new H264Encoder(VIDEO_RESOLUTION_WIDTH, VIDEO_RESOLUTION_HEIGHT, FPS, VIDEO_RESOLUTION_WIDTH * VIDEO_RESOLUTION_HEIGHT * 5);
+            h264Encoder.StartEncoderThread();
+        }
+
+        @Override
+        public void onCapturerStopped() {
+            Log.i(TAG, "onCapturerStopped: ");
+            h264Encoder.StopThread();
+            h264Encoder = null;
+        }
+
+        @Override
+        public void onFrameCaptured(VideoFrame videoFrame) {
+            Log.i(TAG, "onFrameCaptured: w = " + videoFrame.getBuffer().getWidth() + ", h = " + videoFrame.getBuffer().getHeight());
+            if (H264Encoder.YUVQueue.size() >= 10) {
+                H264Encoder.YUVQueue.poll();
+            }
+            // YUV420 大小总是 width * height * 3 / 2
+
+            byte[] mYuvBytes = new byte[videoFrame.getRotatedWidth() * videoFrame.getRotatedHeight() * 3 / 2];
+            // YUV_420_888
+
+            // Y通道
+            ByteBuffer yBuffer = videoFrame.getBuffer().toI420().getDataY();
+            int yLen = VIDEO_RESOLUTION_WIDTH * VIDEO_RESOLUTION_HEIGHT;
+            yBuffer.get(mYuvBytes, 0, yLen);
+            // U通道
+            ByteBuffer uBuffer = videoFrame.getBuffer().toI420().getDataU();
+            int pixelStride = videoFrame.getBuffer().toI420().getStrideU(); // pixelStride = 2
+            for (int i = 0; i < uBuffer.remaining(); i += pixelStride) {
+                mYuvBytes[yLen++] = uBuffer.get(i);
+            }
+            // V通道
+            ByteBuffer vBuffer = videoFrame.getBuffer().toI420().getDataV();
+            pixelStride = videoFrame.getBuffer().toI420().getStrideV(); // pixelStride = 2
+            for (int i = 0; i < vBuffer.remaining(); i += pixelStride) {
+                mYuvBytes[yLen++] = vBuffer.get(i);
+            }
+            H264Encoder.YUVQueue.add(mYuvBytes);
+        }
+    };
+
     public void destroy() {
         if (callBack != null) {
             callBack = null;
-        }
-        if (peerConnection != null) {
-            peerConnection.dispose();
-            peerConnection = null;
         }
         if (surfaceTextureHelper != null) {
             surfaceTextureHelper.dispose();
             surfaceTextureHelper = null;
         }
-        if (captureAndroid != null) {
-            captureAndroid.dispose();
-            captureAndroid = null;
+        if (videoCapturer != null) {
+            videoCapturer.dispose();
+            videoCapturer = null;
+        }
+        if (peerConnection != null) {
+            peerConnection.dispose();
+            peerConnection = null;
         }
         if (surfaceViewRenderer != null) {
             surfaceViewRenderer.clearImage();
@@ -298,8 +353,10 @@ public class WebRtcUtil implements PeerConnection.Observer, SdpObserver {
     }
 
     public void setRemoteSdp(String sdp) {
+        Log.i(TAG, "setRemoteSdp: ");
         if (peerConnection != null) {
             SessionDescription remoteSpd = new SessionDescription(SessionDescription.Type.ANSWER, sdp);
+            Log.i(TAG, "setRemoteDescription: ");
             peerConnection.setRemoteDescription(this, remoteSpd);
         }
     }
