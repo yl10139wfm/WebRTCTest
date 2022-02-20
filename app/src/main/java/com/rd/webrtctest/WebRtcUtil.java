@@ -39,6 +39,7 @@ import org.webrtc.VideoProcessor;
 import org.webrtc.VideoSink;
 import org.webrtc.VideoSource;
 import org.webrtc.VideoTrack;
+import org.webrtc.YuvHelper;
 import org.webrtc.audio.JavaAudioDeviceModule;
 import org.webrtc.voiceengine.WebRtcAudioUtils;
 
@@ -153,13 +154,13 @@ public class WebRtcUtil implements PeerConnection.Observer, SdpObserver {
                 videoCapturer = CameraUtil.createVideoCapture(context);
                 surfaceTextureHelper = SurfaceTextureHelper.create("CaptureThread", eglBase.getEglBaseContext());
                 videoSource = peerConnectionFactory.createVideoSource(false);
-                videoSource.setVideoProcessor(videoProcessor);
+                //videoSource.setVideoProcessor(videoProcessor);
                 videoCapturer.initialize(surfaceTextureHelper, context, videoSource.getCapturerObserver());
                 videoCapturer.startCapture(VIDEO_RESOLUTION_WIDTH, VIDEO_RESOLUTION_HEIGHT, FPS);
                 videoTrack = peerConnectionFactory.createVideoTrack(VIDEO_TRACK_ID, videoSource);
                 videoTrack.setEnabled(true);
                 if (surfaceViewRenderer != null) {
-                    ProxyVideoSink videoSink = new ProxyVideoSink();
+                    ProxyVideoSink videoSink = new ProxyVideoSink(this.eglBase.getEglBaseContext());
                     videoSink.setTarget(surfaceViewRenderer);
                     videoTrack.addSink(videoSink);
                 }
@@ -223,16 +224,16 @@ public class WebRtcUtil implements PeerConnection.Observer, SdpObserver {
     };
 
     public void destroy() {
+        if (videoCapturer != null) {
+            videoCapturer.dispose();
+            videoCapturer = null;
+        }
         if (callBack != null) {
             callBack = null;
         }
         if (surfaceTextureHelper != null) {
             surfaceTextureHelper.dispose();
             surfaceTextureHelper = null;
-        }
-        if (videoCapturer != null) {
-            videoCapturer.dispose();
-            videoCapturer = null;
         }
         if (peerConnection != null) {
             peerConnection.dispose();
@@ -362,6 +363,7 @@ public class WebRtcUtil implements PeerConnection.Observer, SdpObserver {
     }
 
     public interface WebRtcCallBack {
+
         void onSuccess();
 
         void onFail();
@@ -446,67 +448,69 @@ public class WebRtcUtil implements PeerConnection.Observer, SdpObserver {
 
     @Override
     public void onSetSuccess() {
-
+        Log.i(TAG, "onSetSuccess: ");
     }
 
     @Override
     public void onCreateFailure(String error) {
-
+        Log.i(TAG, "onCreateFailure: ");
     }
 
     @Override
     public void onSetFailure(String error) {
-
+        Log.i(TAG, "onSetFailure: ");
     }
 
     @Override
     public void onSignalingChange(PeerConnection.SignalingState newState) {
-
+        Log.i(TAG, "onSignalingChange: ");
     }
 
     @Override
     public void onIceConnectionChange(PeerConnection.IceConnectionState newState) {
-
+        Log.i(TAG, "onIceConnectionChange: ");
     }
 
     @Override
     public void onIceConnectionReceivingChange(boolean receiving) {
-
+        Log.i(TAG, "onIceConnectionReceivingChange: ");
     }
 
     @Override
     public void onIceGatheringChange(PeerConnection.IceGatheringState newState) {
-
+        Log.i(TAG, "onIceGatheringChange: ");
     }
 
     @Override
     public void onIceCandidate(IceCandidate candidate) {
         peerConnection.addIceCandidate(candidate);
+        Log.i(TAG, "onIceCandidate: ");
     }
 
     @Override
     public void onIceCandidatesRemoved(IceCandidate[] candidates) {
         peerConnection.removeIceCandidates(candidates);
+        Log.i(TAG, "onIceCandidatesRemoved: ");
     }
 
     @Override
     public void onAddStream(MediaStream stream) {
-
+        Log.i(TAG, "onAddStream: ");
     }
 
     @Override
     public void onRemoveStream(MediaStream stream) {
-
+        Log.i(TAG, "onRemoveStream: ");
     }
 
     @Override
     public void onDataChannel(DataChannel dataChannel) {
-
+        Log.i(TAG, "onDataChannel: ");
     }
 
     @Override
     public void onRenegotiationNeeded() {
-
+        Log.i(TAG, "onRenegotiationNeeded: ");
     }
 
     @Override
@@ -516,7 +520,7 @@ public class WebRtcUtil implements PeerConnection.Observer, SdpObserver {
             VideoTrack remoteVideoTrack = (VideoTrack) track;
             remoteVideoTrack.setEnabled(true);
             if (surfaceViewRenderer != null && isShowCamera) {
-                ProxyVideoSink videoSink = new ProxyVideoSink();
+                ProxyVideoSink videoSink = new ProxyVideoSink(this.eglBase.getEglBaseContext());
                 videoSink.setTarget(surfaceViewRenderer);
                 remoteVideoTrack.addSink(videoSink);
             }
