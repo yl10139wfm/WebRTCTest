@@ -39,7 +39,6 @@ import org.webrtc.VideoProcessor;
 import org.webrtc.VideoSink;
 import org.webrtc.VideoSource;
 import org.webrtc.VideoTrack;
-import org.webrtc.YuvHelper;
 import org.webrtc.audio.JavaAudioDeviceModule;
 import org.webrtc.voiceengine.WebRtcAudioUtils;
 
@@ -274,18 +273,25 @@ public class WebRtcUtil implements PeerConnection.Observer, SdpObserver {
 
     private int reConnCount;
     private final int MAX_CONN_COUNT = 10;
-    public static final String API = "http://%s:1985/rtc/v1/play/";
+    public static final String API = "https://%s:1985/rtc/v1/play/";
     public static final String STREAM_URL = "webrtc://%s/live/livestream";
 
     public void openWebRtc(String sdp) {
         PlayBodyBean playBodyBean = new PlayBodyBean();
         //解析ip
+
+        System.out.println("sdp::"+sdp);
+        System.out.println("playUrl::"+playUrl);
+
         String serverIp = getIps(playUrl).get(0);
-        String streamUrl = String.format(STREAM_URL, serverIp);
+//        String streamUrl = String.format(STREAM_URL, serverIp);
+        String streamUrl = String.format(playUrl);
         String api = String.format(API, serverIp);
         if (isPublish) {
             api = api.replace("play", "publish");
         }
+
+
         playBodyBean.setApi(api);
         playBodyBean.setClientip(getIpAddressString());
         playBodyBean.setStreamurl(streamUrl);
@@ -294,12 +300,14 @@ public class WebRtcUtil implements PeerConnection.Observer, SdpObserver {
         Log.i(TAG, "openWebRtc: api = " + playBodyBean.getApi());
         Log.i(TAG, "openWebRtc: clientIp = " + playBodyBean.getClientip());
         Log.i(TAG, "openWebRtc: streamurl = " + playBodyBean.getStreamurl());
+        Log.i(TAG, "openWebRtc: body = " + body);
         RxHttp.postBody(api)
-                .setBody(body, MediaType.parse("json:application/json;charset=utf-8"))
+//                .setBody(body, MediaType.parse("json:application/json;charset=utf-8"))
+                .setBody(body, MediaType.parse("Content-Type:application/json;charset=utf-8"))
                 .asString()
                 .subscribe(s -> {
                     s = s.replaceAll("\n", "");
-                    Log.i(TAG, "openWebRtc: result = " + s);
+                    Log.i(TAG, "openWebRtc: result11 = " + s);
                     if (!TextUtils.isEmpty(s)) {
                         SdpBean sdpBean = new Gson().fromJson(s, SdpBean.class);
                         if (sdpBean.getCode() == 400) {
@@ -312,7 +320,7 @@ public class WebRtcUtil implements PeerConnection.Observer, SdpObserver {
                     }
                 }, throwable -> {
                     Log.e(TAG, "openWebRtc: throwable " + throwable.getMessage());
-                    openWebRtc(sdp);
+//                    openWebRtc(sdp);
                 });
     }
 
